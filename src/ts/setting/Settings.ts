@@ -249,7 +249,7 @@ class Settings {
     needTag: [],
     notNeedTag: [],
     quietDownload: true,
-    downloadThread: 5,
+    downloadThread: 1,
     userSetName: '{p_title}/{id}',
     namingRuleList: [],
     tagNameToFileName: false,

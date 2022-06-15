@@ -22,5 +22,8 @@ package-lock.json
 
 # build file
 *.zip
+/dist
+/dist/**
 /dist-offline
+/dist-offline/**
 *special*

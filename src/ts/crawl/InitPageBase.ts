@@ -354,7 +354,9 @@ abstract class InitPageBase {
 
     store.crawlCompleteTime = new Date()
 
-    this.sortResult()
+    // this.sortResult()
+    // 该版本把作品按照 id 升序排列，先下载旧作品，后下载新作品
+    store.result.sort(Utils.sortByProperty('id', 'asc'))
 
     if (settings.downloadUgoiraFirst) {
       store.resultMeta.sort(Tools.sortUgoiraFirst)
