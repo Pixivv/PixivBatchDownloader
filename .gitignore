@@ -22,8 +22,7 @@ package-lock.json
 
 # build file
 *.zip
-/dist
 /dist/**
-/dist-offline
 /dist-offline/**
-*special*
+/dist-special-HongYe/**
+/dist-special-DelMemory/**
