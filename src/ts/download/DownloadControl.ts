@@ -14,6 +14,7 @@ import { lang } from '../Lang'
 import { Colors } from '../config/Colors'
 import { setSetting, settings } from '../setting/Settings'
 import { Download } from '../download/Download'
+import { downloadNovelCover } from '../download/DownloadNovelCover'
 import { progressBar } from './ProgressBar'
 import { downloadStates } from './DownloadStates'
 import { ShowDownloadStates } from './ShowDownloadStates'
@@ -29,6 +30,8 @@ import { pageType } from '../PageType'
 
 class DownloadControl {
   constructor() {
+    this.createResultBtns()
+
     this.createDownloadArea()
 
     this.bindEvents()
@@ -57,6 +60,19 @@ class DownloadControl {
     }
   }
 
+  private wrapper: HTMLDivElement = document.createElement('div')
+
+  /**在插槽里添加的操作抓取结果的按钮 */
+  private resultBtns: {
+    exportCSV: HTMLButtonElement
+    exportJSON: HTMLButtonElement
+    importJSON: HTMLButtonElement
+  } = {
+    exportCSV: document.createElement('button'),
+    exportJSON: document.createElement('button'),
+    importJSON: document.createElement('button'),
+  }
+
   private thread = 5 // 同时下载的线程数的默认值
   // 这里默认设置为 5，是因为国内一些用户的下载速度比较慢，所以不应该同时下载很多文件。
   // 最大值由 Config.downloadThreadMax 定义
@@ -69,8 +85,6 @@ class DownloadControl {
 
   private downloaded = 0 // 已下载的任务数量
 
-  private wrapper: HTMLDivElement = document.createElement('div')
-
   private stop = false // 是否已经停止下载
 
   private pause = false // 是否已经暂停下载
@@ -79,6 +93,7 @@ class DownloadControl {
 
   private bindEvents() {
     window.addEventListener(EVT.list.crawlStart, () => {
+      this.hideResultBtns()
       this.hideDownloadArea()
       this.reset()
     })
@@ -129,7 +144,24 @@ class DownloadControl {
 
         this.downloadOrSkipAFile(msg.data)
       } else if (msg.msg === 'download_err') {
-        // 浏览器把文件保存到本地时出错
+        // 浏览器把文件保存到本地失败
+
+        // 用户在浏览器弹出“另存为”对话框时取消保存
+        // 跳过这个文件，不再重试保存它
+        if (msg.err === 'USER_CANCELED') {
+          log.error(
+            lang.transl(
+              '_user_canceled_tip',
+              Tools.createWorkLink(msg.data.id),
+              msg.err || 'unknown'
+            )
+          )
+
+          this.downloadOrSkipAFile(msg.data)
+          return
+        }
+
+        // 其他原因，下载器会重试保存这个文件
         log.error(
           lang.transl(
             '_save_file_failed_tip',
@@ -137,9 +169,11 @@ class DownloadControl {
             msg.err || 'unknown'
           )
         )
+
         if (msg.err === 'FILE_FAILED') {
           log.error(lang.transl('_FILE_FAILED_tip'))
         }
+
         EVT.fire('saveFileError')
         // 重新下载这个文件
         // 但并不确定能否如预期一样重新下载这个文件
@@ -213,6 +247,60 @@ class DownloadControl {
     })
   }
 
+  private createResultBtns() {
+    // 只在 pixiv 上添加这些按钮
+    if (Utils.isPixiv()) {
+      // 导入抓取结果
+      this.resultBtns.importJSON = Tools.addBtn(
+        'exportResult',
+        Colors.bgGreen,
+        '_导入抓取结果'
+      )
+      // 导入抓取结果的按钮始终显示，因为它需要始终可用。
+      // 导出抓取结果的按钮只有在可以准备下载时才显示
+
+      this.resultBtns.importJSON.addEventListener(
+        'click',
+        () => {
+          EVT.fire('importResult')
+        },
+        false
+      )
+
+      // 导出抓取结果
+      this.resultBtns.exportJSON = Tools.addBtn(
+        'exportResult',
+        Colors.bgGreen,
+        '_导出抓取结果'
+      )
+      this.resultBtns.exportJSON.style.display = 'none'
+
+      this.resultBtns.exportJSON.addEventListener(
+        'click',
+        () => {
+          EVT.fire('exportResult')
+        },
+        false
+      )
+
+      // 导出 csv
+      this.resultBtns.exportCSV = Tools.addBtn(
+        'exportResult',
+        Colors.bgGreen,
+        '_导出csv'
+      )
+      this.resultBtns.exportCSV.style.display = 'none'
+
+      this.resultBtns.exportCSV.addEventListener(
+        'click',
+        () => {
+          EVT.fire('exportCSV')
+        },
+        false
+      )
+    }
+  }
+
   // 抓取完毕之后，已经可以开始下载时，显示必要的信息，并决定是否立即开始下载
   private readyDownload() {
     if (states.busy || states.mergeNovel) {
@@ -222,6 +310,10 @@ class DownloadControl {
     if (store.result.length === 0) {
       return progressBar.reset(0)
     }
+
+    EVT.fire('readyDownload')
+
+    this.showResultBtns()
 
     this.showDownloadArea()
 
@@ -423,9 +515,9 @@ class DownloadControl {
       return this.checkCompleteWithError()
     } else {
       const workData = store.result[index]
-      const data: downloadArgument = {
+      const argument: downloadArgument = {
         id: workData.id,
-        data: workData,
+        result: workData,
         index: index,
         progressBarIndex: progressBarIndex,
         taskBatch: this.taskBatch,
@@ -438,7 +530,9 @@ class DownloadControl {
       }
 
       // 建立下载
-      new Download(progressBarIndex, data)
+      new Download(progressBarIndex, argument)
+
+      downloadNovelCover.download(argument.result)
     }
   }
 
@@ -492,6 +586,16 @@ class DownloadControl {
 
   private hideDownloadArea() {
     this.wrapper.style.display = 'none'
+  }
+
+  private showResultBtns() {
+    this.resultBtns.exportJSON.style.display = 'flex'
+    this.resultBtns.exportCSV.style.display = 'flex'
+  }
+
+  private hideResultBtns() {
+    this.resultBtns.exportJSON.style.display = 'none'
+    this.resultBtns.exportCSV.style.display = 'none'
   }
 }
 
