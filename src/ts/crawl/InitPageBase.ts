@@ -24,6 +24,7 @@ import { pageType } from '../PageType'
 import { filter } from '../filter/Filter'
 import { Config } from '../config/Config'
 import { timedCrawl } from './TimedCrawl'
+import '../pageFunciton/QuickBookmark'
 
 abstract class InitPageBase {
   protected crawlNumber = 0 // 要抓取的个数/页数
@@ -401,11 +402,6 @@ abstract class InitPageBase {
     // this.sortResult()
     // 该版本把作品按照 id 升序排列，先下载旧作品，后下载新作品
     store.result.sort(Utils.sortByProperty('id', 'asc'))
-
-    if (settings.downloadUgoiraFirst) {
-      store.resultMeta.sort(Tools.sortUgoiraFirst)
-      store.result.sort(Tools.sortUgoiraFirst)
-    }
 
     log.log(lang.transl('_共抓取到n个作品', store.resultMeta.length.toString()))
 
